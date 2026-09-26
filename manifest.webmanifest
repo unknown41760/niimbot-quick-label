@@ -1,0 +1,12 @@
+{
+  "name": "Quick Label — NIIMBOT D11_H",
+  "short_name": "Quick Label",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#111827",
+  "description": "One-tap text and date printing for NIIMBOT D11_H",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

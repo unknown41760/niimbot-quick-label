@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#111827" />
+  <meta name="app-version" content="0.2.0-test" />
+  <title>Quick Label — NIIMBOT D11_H</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: #f4f5f7; color: #111827; }
+    .app { max-width: 680px; margin: 0 auto; min-height: 100vh; background: #fff; padding: 20px 16px calc(28px + env(safe-area-inset-bottom)); }
+    h1 { margin: 0 0 4px; font-size: 1.45rem; }
+    .sub { margin: 0 0 18px; color: #6b7280; font-size: .92rem; }
+    label { display: block; font-weight: 650; margin: 14px 0 7px; }
+    input, select, button { font: inherit; }
+    input[type="text"], input[type="number"], select {
+      width: 100%; min-height: 52px; border: 1px solid #cbd5e1; border-radius: 12px;
+      padding: 10px 12px; background: #fff; color: #111827; font-size: 18px;
+    }
+    #text { font-size: 22px; font-weight: 600; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .preview-wrap { margin: 18px 0 12px; padding: 12px; background: #eef2f7; border-radius: 14px; overflow: hidden; }
+    .preview-label { font-size: .78rem; color: #64748b; margin-bottom: 7px; }
+    #preview { display: block; width: 100%; height: auto; max-height: 170px; background: white; border: 1px solid #d1d5db; border-radius: 6px; image-rendering: auto; }
+    #print { width: 100%; min-height: 62px; border: 0; border-radius: 14px; background: #111827; color: white; font-size: 21px; font-weight: 800; cursor: pointer; }
+    #print:disabled { opacity: .55; cursor: default; }
+    #status { min-height: 24px; margin: 10px 3px 0; font-size: .9rem; color: #475569; }
+    #status.error { color: #b91c1c; }
+    #status.ok { color: #166534; }
+    details { margin-top: 18px; border-top: 1px solid #e5e7eb; padding-top: 12px; }
+    summary { cursor: pointer; font-weight: 700; min-height: 44px; display: flex; align-items: center; }
+    .settings { padding-bottom: 8px; }
+    .small { color: #64748b; font-size: .83rem; line-height: 1.35; }
+    .checkbox { display: flex; gap: 9px; align-items: center; font-weight: 500; min-height: 44px; margin: 6px 0; }
+    .checkbox input { width: 20px; height: 20px; }
+    .custom { display: none; padding: 8px 0 0; }
+    .custom.show { display: block; }
+    .pill { display: inline-block; padding: 3px 8px; border-radius: 999px; background: #eef2ff; color: #3730a3; font-size: .76rem; font-weight: 700; }
+    .footer { margin-top: 18px; color: #94a3b8; font-size: .75rem; line-height: 1.35; }
+    .diagnostics { padding: 10px 12px; border-radius: 10px; background: #eef2f7; font-size: .82rem; line-height: 1.5; overflow-wrap: anywhere; }
+    .diagnostics p { margin: 3px 0; }
+    .diag-log { white-space: pre-wrap; max-height: 140px; overflow: auto; margin: 5px 0 0; }
+    .secondary { width: 100%; min-height: 48px; border: 1px solid #94a3b8; border-radius: 10px; background: transparent; color: inherit; font-weight: 650; margin-top: 10px; }
+    .secondary:disabled { opacity: .55; }
+    @media (prefers-color-scheme: dark) {
+      body { background: #0b1020; color: #e5e7eb; }
+      .app { background: #111827; }
+      .sub,.small,#status { color: #94a3b8; }
+      input[type="text"], input[type="number"], select { background: #0f172a; color: #f8fafc; border-color: #334155; }
+      .preview-wrap { background: #0f172a; }
+      #print { background: #f8fafc; color: #111827; }
+      details { border-color: #334155; }
+      .pill { background: #312e81; color: #e0e7ff; }
+      .diagnostics { background: #0f172a; }
+    }
+  </style>
+</head>
+<body>
+<main class="app">
+  <h1>Quick Label <span class="pill">D11_H</span></h1>
+  <p class="sub">Type the name. The date and layout are automatic.</p>
+
+  <label for="text">Text</label>
+  <input id="text" type="text" autocomplete="off" autocapitalize="sentences" enterkeyhint="done" placeholder="Молоко / Milk" autofocus />
+
+  <div class="row">
+    <div>
+      <label for="profile">Label</label>
+      <select id="profile">
+        <option value="15x30">15 × 30 mm</option>
+        <option value="15x50">15 × 50 mm · needs calibration</option>
+        <option value="12.5x109-double">12.5 × 109 mm · two sides · needs calibration</option>
+        <option value="custom">Custom…</option>
+      </select>
+    </div>
+    <div>
+      <label for="dateMode">Date</label>
+      <select id="dateMode">
+        <option value="day">Day · 26.09</option>
+        <option value="month">Month · 09.26</option>
+        <option value="full">Full · 26.09.2026</option>
+        <option value="none">No date</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="preview-wrap">
+    <div class="preview-label">Automatic preview — Russian/Cyrillic is supported</div>
+    <canvas id="preview" width="354" height="144"></canvas>
+  </div>
+
+  <button id="print" type="button">Print</button>
+  <div id="status" role="status" aria-live="polite">First print may open the Bluetooth chooser.</div>
+
+  <details>
+    <summary>Settings</summary>
+    <div class="settings">
+      <label for="density">Print density</label>
+      <select id="density">
+        <option value="1">1 — light</option>
+        <option value="2">2</option>
+        <option value="3" selected>3 — normal</option>
+        <option value="4">4</option>
+        <option value="5">5 — dark</option>
+      </select>
+
+      <label class="checkbox"><input id="flipSecond" type="checkbox" checked /> Rotate the second side 180° on double-sided cable labels</label>
+      <p class="small">The 12.5 × 109 preset is laid out as 37 mm print + 35 mm blank wrap area + 37 mm print.</p>
+      <p id="calibrationState" class="small"></p>
+
+      <label for="feedOffset">Feed offset for this label, px</label>
+      <input id="feedOffset" type="number" min="-30" max="30" step="1" value="0" inputmode="numeric" />
+      <p class="small">Positive moves artwork toward the end of the label; negative moves it toward the start. Paper size stays the same.</p>
+      <label for="horizontalOffset">Across-head shift for this label, px</label>
+      <input id="horizontalOffset" type="number" min="-12" max="12" step="1" value="0" inputmode="numeric" />
+      <p class="small">Shifts artwork within the 144 px printhead; content at an edge may be clipped.</p>
+      <button id="testPattern" class="secondary" type="button">Print one calibration pattern</button>
+      <p class="small">Uses one label of the selected roll. The pattern marks the start/end and three positions across the head.</p>
+
+      <div id="custom" class="custom">
+        <div class="row">
+          <div><label for="customWidth">Width, mm</label><input id="customWidth" type="number" min="5" max="15" step="0.1" value="15" inputmode="decimal" /></div>
+          <div><label for="customLength">Length, mm</label><input id="customLength" type="number" min="10" max="150" step="0.1" value="40" inputmode="decimal" /></div>
+        </div>
+        <label for="customMode">Layout</label>
+        <select id="customMode"><option value="single">Single-sided</option><option value="double">Two-sided cable</option></select>
+        <div id="customDouble" class="custom">
+          <div class="row">
+            <div><label for="sideMm">Each printed side, mm</label><input id="sideMm" type="number" min="10" max="70" step="0.1" value="30" inputmode="decimal" /></div>
+            <div><label for="gapMm">Middle gap, mm</label><input id="gapMm" type="number" min="0" max="80" step="0.1" value="20" inputmode="decimal" /></div>
+          </div>
+        </div>
+      </div>
+
+      <p class="small">D11_H has a measured 144-pixel printhead. Wider labels are automatically clamped to that printable width.</p>
+      <h2 style="font-size:1rem;margin:18px 0 8px">Diagnostics</h2>
+      <div class="diagnostics" aria-live="polite">
+        <p>App: <span id="appVersion"></span> · Driver: <span id="driverVersion"></span></p>
+        <p>Printer: <span id="printerInfo">Not connected yet</span></p>
+        <p>Label bitmap: <span id="pixelSize"></span></p>
+        <p>Last error: <span id="lastError">None</span></p>
+        <p>Print progress:</p><pre id="progressLog" class="diag-log">No print attempted yet.</pre>
+      </div>
+    </div>
+  </details>
+
+  <p class="footer">Test build <span id="footerVersion"></span> for NIIMBOT D11_H. Uses the bundled <code>niimbot-web-bluetooth</code> 2.6.0 driver (MIT). Use an HTTPS page in Chrome on Android.</p>
+</main>
+<script src="vendor/niimbot.js?v=2.6.0" defer></script>
+<script src="app.js?v=0.2.0" defer></script>
+</body>
+</html>

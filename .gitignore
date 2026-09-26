@@ -1,0 +1,8 @@
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/
+.npm-cache/
+.tmp-upstream/
+niimbot-web-bluetooth-2.6.0.tgz
