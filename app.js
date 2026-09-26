@@ -5,7 +5,7 @@
   const PX_PER_MM = 354 / 30; // D11_H measured 300-dpi feed scale from the driver registry.
   const HEAD_PX = 144;
   const STORAGE_KEY = "quick-label-d11h-v1";
-  const APP_VERSION = "0.3.1-test";
+  const APP_VERSION = "0.4.0-test";
   const DRIVER_VERSION = "2.6.0";
   const ROLL_MEMORY_KEY = "quick-label-d11h:rolls-v1";
 
@@ -42,6 +42,9 @@
 
   let printing = false;
   let readingRoll = false;
+  let installPrompt = null;
+  let swRegistration = null;
+  let reloadForUpdate = false;
   const rollMemory = window.NiimbotLabelMemory?.create({ key: ROLL_MEMORY_KEY }) || null;
   const progress = [];
   $("appVersion").textContent = APP_VERSION;
@@ -295,7 +298,7 @@
 
   function renderPreview() {
     const profile = currentProfile();
-    const text = $("text").value.trim() || "Молоко";
+    const text = $("text").value.trim() || "Название";
     const date = localDate($("dateMode").value);
     const { logical, size } = buildLogicalCanvas(profile, text, date);
     $("previewCaption").textContent = profile.mode === "double"
@@ -405,7 +408,7 @@
   }
 
   async function rememberInstalledRoll() {
-    if (printing || readingRoll) return;
+    if (printing || readingRoll || reloadForUpdate) return;
     const selected = $("profile").value;
     if (!Object.hasOwn(PRESETS, selected)) {
       reportError("Choose one of the named label presets before remembering this roll.");
@@ -426,6 +429,7 @@
     }
 
     readingRoll = true;
+    updateReloadButton();
     $("rememberRoll").disabled = true;
     $("print").disabled = true;
     $("testPattern").disabled = true;
@@ -454,11 +458,12 @@
       $("rememberRoll").disabled = false;
       $("print").disabled = false;
       $("testPattern").disabled = false;
+      updateReloadButton();
     }
   }
 
   async function printNow(pattern = false) {
-    if (printing || readingRoll) return;
+    if (printing || readingRoll || reloadForUpdate) return;
     const text = $("text").value.trim();
     if (!text && !pattern) {
       reportError("Type something first.");
@@ -471,6 +476,7 @@
     }
 
     printing = true;
+    updateReloadButton();
     $("print").disabled = true;
     $("testPattern").disabled = true;
     $("rememberRoll").disabled = true;
@@ -547,7 +553,92 @@
       $("testPattern").disabled = false;
       $("rememberRoll").disabled = false;
       $("print").textContent = "Print";
+      updateReloadButton();
     }
+  }
+
+  function isInstalled() {
+    return window.matchMedia?.("(display-mode: standalone)").matches || navigator.standalone === true;
+  }
+
+  function updateInstallUI() {
+    $("installApp").hidden = isInstalled() || !installPrompt;
+    $("installHelp").textContent = isInstalled()
+      ? "Quick Label is installed. Open it from your Android app launcher."
+      : installPrompt
+        ? "Install from here, or use Chrome ⋮ → Install app."
+        : "In Android Chrome, choose ⋮ → Install app (or Add to Home screen).";
+  }
+
+  function updateReloadButton() {
+    $("applyUpdate").disabled = printing || readingRoll || reloadForUpdate;
+  }
+
+  function showUpdateReady() {
+    if (!swRegistration?.waiting || !navigator.serviceWorker.controller) return;
+    $("updateNotice").hidden = false;
+    $("updateInfo").textContent = "A complete update is downloaded. Tap Update ready — Reload when printing is finished.";
+    updateReloadButton();
+  }
+
+  function waitForWorker(worker) {
+    if (!worker || ["installed", "activated", "redundant"].includes(worker.state)) return Promise.resolve();
+    return new Promise((resolve) => {
+      const done = () => {
+        if (["installed", "activated", "redundant"].includes(worker.state)) {
+          worker.removeEventListener("statechange", done);
+          resolve();
+        }
+      };
+      worker.addEventListener("statechange", done);
+      done();
+    });
+  }
+
+  async function checkForUpdates(manual = false) {
+    if (!swRegistration) {
+      if (manual) $("updateInfo").textContent = "Offline setup is still starting. Try again shortly.";
+      return;
+    }
+    if (manual) {
+      $("checkUpdates").disabled = true;
+      $("updateInfo").textContent = "Checking for updates…";
+    }
+    try {
+      await swRegistration.update();
+      const installing = swRegistration.installing;
+      await waitForWorker(installing);
+      if (swRegistration.waiting) showUpdateReady();
+      else if (manual) $("updateInfo").textContent = installing?.state === "redundant"
+        ? "Update download did not finish. Keep the current version and try again online."
+        : "This device has the latest available version.";
+      await refreshOfflineState();
+    } catch (_) {
+      if (manual) $("updateInfo").textContent = "Could not check online. The saved version remains available offline.";
+    } finally {
+      if (manual) $("checkUpdates").disabled = false;
+    }
+  }
+
+  async function refreshOfflineState() {
+    const worker = navigator.serviceWorker?.controller;
+    if (!worker) {
+      $("offlineInfo").textContent = "Preparing offline access. Keep this page open online until it is ready.";
+      return;
+    }
+    const status = await new Promise((resolve) => {
+      const channel = new MessageChannel();
+      const timer = setTimeout(() => resolve(null), 1500);
+      channel.port1.onmessage = (event) => {
+        clearTimeout(timer);
+        resolve(event.data);
+      };
+      worker.postMessage({ type: "GET_STATUS" }, [channel.port2]);
+    });
+    if (navigator.serviceWorker.controller !== worker) return;
+    $("offlineInfo").textContent = status?.version === APP_VERSION && status.offlineReady
+      ? "Available offline. You can print without Internet when Bluetooth is on."
+      : "Offline files for this version are not active yet. Check for updates or reload while online.";
   }
 
   const watched = ["text", "profile", "dateMode", "density", "flipSecond", "customWidth", "customLength", "customMode", "sideMm", "gapMm", "customBlankPlacement", "feedOffset", "horizontalOffset"];
@@ -565,6 +656,35 @@
   $("print").addEventListener("click", () => printNow(false));
   $("testPattern").addEventListener("click", () => printNow(true));
   $("rememberRoll").addEventListener("click", rememberInstalledRoll);
+  $("checkUpdates").addEventListener("click", () => checkForUpdates(true));
+  $("applyUpdate").addEventListener("click", () => {
+    if (printing || readingRoll || !swRegistration?.waiting) return;
+    reloadForUpdate = true;
+    updateReloadButton();
+    $("print").disabled = true;
+    $("testPattern").disabled = true;
+    $("rememberRoll").disabled = true;
+    $("updateInfo").textContent = "Activating update…";
+    swRegistration.waiting.postMessage({ type: "SKIP_WAITING" });
+  });
+  $("installApp").addEventListener("click", async () => {
+    if (!installPrompt) return;
+    const prompt = installPrompt;
+    installPrompt = null;
+    updateInstallUI();
+    await prompt.prompt();
+    const choice = await prompt.userChoice;
+    if (choice?.outcome === "accepted") $("installHelp").textContent = "Installing Quick Label…";
+  });
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    installPrompt = event;
+    updateInstallUI();
+  });
+  window.addEventListener("appinstalled", () => {
+    installPrompt = null;
+    updateInstallUI();
+  });
   $("text").addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -573,6 +693,7 @@
   });
 
   renderPreview();
+  updateInstallUI();
 
   if (!window.Niimbot || window.Niimbot.VERSION !== DRIVER_VERSION) {
     reportError("Bundled printer driver did not load correctly. Reload this page and check the uploaded vendor/niimbot.js file.");
@@ -580,8 +701,36 @@
 
   if ("serviceWorker" in navigator && window.isSecureContext) {
     navigator.serviceWorker.addEventListener("controllerchange", () => {
-      setStatus("App files updated. Reload the page before printing.");
+      if (reloadForUpdate) {
+        window.location.reload();
+      } else {
+        refreshOfflineState().catch(() => {});
+      }
     });
-    window.addEventListener("load", () => navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((r) => r.update()).catch(() => {}));
+    window.addEventListener("load", async () => {
+      try {
+        swRegistration = await navigator.serviceWorker.register("sw.js", { updateViaCache: "none" });
+        const watchInstalling = () => {
+          const worker = swRegistration.installing;
+          if (!worker) return;
+          worker.addEventListener("statechange", () => {
+            if (worker.state === "installed") showUpdateReady();
+            if (worker.state === "activated") refreshOfflineState().catch(() => {});
+          });
+        };
+        swRegistration.addEventListener("updatefound", watchInstalling);
+        watchInstalling();
+        showUpdateReady();
+        await checkForUpdates();
+        navigator.serviceWorker.ready.then(() => refreshOfflineState()).catch(() => {});
+      } catch (_) {
+        $("offlineInfo").textContent = "Offline setup failed. Open this page online and try reloading.";
+        $("updateInfo").textContent = "Update checks are unavailable until offline setup succeeds.";
+      }
+    });
+    window.addEventListener("online", () => checkForUpdates());
+  } else {
+    $("offlineInfo").textContent = "Offline installation requires Android Chrome on this HTTPS page.";
+    $("updateInfo").textContent = "Update checks require a supported browser.";
   }
 })();

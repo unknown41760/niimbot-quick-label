@@ -1,6 +1,6 @@
 # Quick Label — NIIMBOT D11_H
 
-A small, static Android Chrome app for **type → Print**. Text and the phone's local date are drawn to a bitmap, including Cyrillic, before being sent over Web Bluetooth. The full local date is the default on a fresh visit; a previously selected date mode remains saved. There is no server, account, build step, or analytics.
+A small, static Android Chrome app for **type → Print**. Text and the phone's local date are drawn to a bitmap, including Cyrillic, before being sent over Web Bluetooth. The full local date is the default on a fresh visit; a previously selected date mode remains saved. The empty field and preview use “Название / Name” and “Название” as examples; nothing is entered for printing until the user types. There is no server, account, build step, or analytics.
 
 ## Label presets
 
@@ -21,17 +21,25 @@ To teach a phone another barcode, choose the correct named preset and tap **Sett
 
 The RFID response has separate `barCode` and `serialNumber` fields. Upstream observed 13-digit product barcodes, but `083024188` is nine digits, and only one roll has been reported with it. A second roll of the same product must be scanned before assuming all such rolls share this barcode. If no tag is readable, the read fails, or the barcode is unknown, Print continues with the visible selector and says so. The user successfully saved this roll's barcode using the D11_H, but automatic selection and the new built-in match still need a physical print check. No cloud lookup or unknown protocol probe is used. Chrome still requires a tap to initiate the Bluetooth connection.
 
+## Install, use offline, and update
+
+On Android, open **https://unknown41760.github.io/niimbot-quick-label/** directly in Chrome while online. In **Settings → Install and updates**, tap **Install Quick Label** if offered; otherwise use Chrome's **⋮ → Install app** (or **Add to Home screen**) menu. Open the installed app from its launcher icon. Wait until Settings says **Available offline** before relying on it without Internet. To test, turn on airplane mode, turn Bluetooth back on, open the installed app, and print. Web Bluetooth still requires a user tap and may show Chrome's printer chooser.
+
+When you open the installed app online, it checks for updates. You can also tap **Check for updates** in Settings. When a complete update is downloaded, tap **Update ready — Reload** after printing finishes. The existing launcher icon remains; no reinstall is needed. Offline, the last complete cached version continues to run. If an update download fails, the previous version stays available. App releases must change the version in `app.js`, `index.html`, and `sw.js`, plus the `app.js` URL in `index.html` and `sw.js`, so the browser downloads one consistent set of files.
+
+The selected label, date mode, density, custom dimensions, calibration, and manually remembered roll mappings use the phone's Chrome site storage and survive ordinary app closure and phone restarts. Updates do not clear those storage keys. They are not synchronized to another phone; the built-in `083024188` mapping is included in app files and reaches other phones through updates. Clearing the site's data can erase saved settings and the offline cache. The typed label text is not saved between sessions.
+
 ## Deploy on GitHub Pages
 
-This directory contains `.nojekyll`, `index.html`, `app.js`, `sw.js`, `manifest.webmanifest`, `icon.svg`, and `vendor/niimbot.js` plus `vendor/label-memory.js` with `vendor/LICENSE`. Commit these files to the root of a GitHub repository. In **Settings → Pages**, select **Deploy from a branch**, the published branch (usually `main`), and **/(root)**. Open the resulting HTTPS URL directly in Android Chrome.
+This directory contains `.nojekyll`, `index.html`, `app.js`, `sw.js`, `manifest.webmanifest`, `icon.svg`, three PNG install icons, and `vendor/niimbot.js` plus `vendor/label-memory.js` with `vendor/LICENSE`. Commit these files to the root of a GitHub repository. In **Settings → Pages**, select **Deploy from a branch**, the published branch (usually `main`), and **/(root)**. Open the resulting HTTPS URL directly in Android Chrome.
 
 The package archive and unpacked source used for verification are excluded by `.gitignore`.
 
-This test build shows its app and driver versions in Settings. Its service worker removes the prototype's cache-first cache and does not intercept later requests. After deploying an update, reload once or twice until Settings shows the new version. If a previously installed copy remains stale, close its tab and reopen the Pages URL in Chrome.
+This test build shows its app and driver versions in Settings. The service worker caches only the app's own shell files; it does not cache unknown requests. On a new release, it downloads every shell file before offering the update. A failed download leaves the previous complete cache in place.
 
 ## Phone test sequence
 
-1. Turn on the D11_H and Bluetooth, load a **15 × 30 mm** roll, and open the Pages URL directly in Android Chrome. Type `Молоко`, choose **Day**, and tap **Print**. Select the D11_H in Chrome's chooser on the first print. The app should identify model **528**, then print and report confirmation. Enter/Done should also print. Confirm the date uses the phone's local day and the Cyrillic letters are readable.
+1. Turn on the D11_H and Bluetooth, load a **15 × 30 mm** roll, and open the Pages URL directly in Android Chrome. Type `Название`, leave the default **Full** date, and tap **Print**. Select the D11_H in Chrome's chooser on the first print. The app should identify model **528**, then print and report confirmation. Enter/Done should also print. Confirm the date uses the phone's local date and the Cyrillic letters are readable.
 2. Photograph the **whole printed 15 × 30 label beside a millimetre ruler**, straight overhead, with the feed/start edge marked. Include a Settings screenshot showing version, detected printer, bitmap size, offsets, progress, and any error. If a failure appears, keep the label: a driver error can occur after some paper has already printed.
 3. In Settings, use **Print one calibration pattern** on the 15 × 30 roll. It uses one label and places short ticks 12 px from each feed end and at left/centre/right across the head. Photograph it as above. Measure from the physical start/end edges to the first/last row of ticks and from the physical left/right edges to the outer tick centres. Record the current feed and across-head offsets from Settings.
 4. Load the **15 × 50** roll, select its preset, and print one calibration pattern. Provide the same overhead photo and four edge measurements. Then print one normal Cyrillic label if the pattern is correctly registered. The 590 px length is only an estimate until measured on this printer.
