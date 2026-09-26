@@ -13,9 +13,15 @@ A small, static Android Chrome app for **type → Print**. Text and the phone's 
 
 The 144 px width is the measured printhead width, even when the roll is 15 mm wide. Feed offset and across-head shift are saved separately for each preset in Settings. Offset changes placement; it does not change the bitmap size or prove a roll's geometry.
 
+## Installed roll recognition
+
+If the installed roll has a readable RFID tag, the printer can return a roll barcode. **The tag does not contain label dimensions.** To teach this phone a barcode once, choose the correct named preset and tap **Settings → Remember this roll as the selected label**. This reads the roll without printing and stores the barcode-to-preset association in this browser's local storage. On later Print taps, the app reads the installed roll, selects the saved preset before rendering, and reports the selection in Settings. Choose a different preset and use the same button to correct an association.
+
+If no tag is readable, the read fails, or the barcode has not been taught, Print continues with the visible selector and says so. This feature has not yet been tested on the user's D11_H/rolls; upstream's RFID decoding is only partly validated on other models. No cloud lookup or unknown protocol probe is used. Chrome still requires a tap to initiate the Bluetooth connection.
+
 ## Deploy on GitHub Pages
 
-This directory contains `.nojekyll`, `index.html`, `app.js`, `sw.js`, `manifest.webmanifest`, `icon.svg`, and `vendor/niimbot.js` with `vendor/LICENSE`. Commit these files to the root of a GitHub repository. In **Settings → Pages**, select **Deploy from a branch**, the published branch (usually `main`), and **/(root)**. Open the resulting HTTPS URL directly in Android Chrome.
+This directory contains `.nojekyll`, `index.html`, `app.js`, `sw.js`, `manifest.webmanifest`, `icon.svg`, and `vendor/niimbot.js` plus `vendor/label-memory.js` with `vendor/LICENSE`. Commit these files to the root of a GitHub repository. In **Settings → Pages**, select **Deploy from a branch**, the published branch (usually `main`), and **/(root)**. Open the resulting HTTPS URL directly in Android Chrome.
 
 The package archive and unpacked source used for verification are excluded by `.gitignore`.
 
@@ -34,5 +40,7 @@ If the chooser does not appear, check that the page is HTTPS, opened directly in
 ## Driver and maintenance
 
 `vendor/niimbot.js` is an **unmodified copy** of `src/niimbot.js` from [`iscarelli/niimbot-web-bluetooth` 2.6.0](https://github.com/iscarelli/niimbot-web-bluetooth/tree/v2.6.0), licensed under MIT; see `vendor/LICENSE`. Its SHA-256 is `5ed9ead4797d575374bef078573eb2196da839f04a5f7bd30886990e865ea6aa`. The app verifies the loaded driver's reported version. Do not upgrade it while comparing physical prints without recording that change.
+
+`vendor/label-memory.js` is the unmodified optional helper from the same 2.6.0 package. It stores only a roll barcode and chosen preset locally, and failures to read or write that memory do not block manual printing.
 
 The app uses the driver's documented `identify(model)` and `printImage(url, { model, size, density, offsetY, onProgress })` APIs. It refuses to send a label unless identification reports D11_H model id 528. It does not use `Niimbot.probe`.

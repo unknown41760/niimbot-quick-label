@@ -5,8 +5,9 @@
   const PX_PER_MM = 354 / 30; // D11_H measured 300-dpi feed scale from the driver registry.
   const HEAD_PX = 144;
   const STORAGE_KEY = "quick-label-d11h-v1";
-  const APP_VERSION = "0.2.2-test";
+  const APP_VERSION = "0.3.0-test";
   const DRIVER_VERSION = "2.6.0";
+  const ROLL_MEMORY_KEY = "quick-label-d11h:rolls-v1";
 
   const MODEL = {
     name_prefixes: ["D11"],
@@ -34,10 +35,13 @@
   applyState();
 
   let printing = false;
+  let readingRoll = false;
+  const rollMemory = window.NiimbotLabelMemory?.create({ key: ROLL_MEMORY_KEY }) || null;
   const progress = [];
   $("appVersion").textContent = APP_VERSION;
   $("footerVersion").textContent = APP_VERSION;
   $("driverVersion").textContent = window.Niimbot?.VERSION || "failed to load";
+  if (!rollMemory) setRollInfo("Roll memory failed to load; manual selection remains available.");
 
   function loadState() {
     try {
@@ -325,6 +329,11 @@
     setStatus(message, "error");
   }
 
+  function setRollInfo(message) {
+    $("rollInfo").textContent = message;
+    $("rollDiagnostic").textContent = message;
+  }
+
   function addProgress(message) {
     progress.push(`${new Date().toLocaleTimeString()}  ${message}`);
     if (progress.length > 12) progress.shift();
@@ -356,8 +365,94 @@
     return canvas;
   }
 
+  async function identifyD11(Niimbot) {
+    $("printerInfo").textContent = "Connecting / identifying…";
+    // identify() reaches requestDevice before its first await, preserving this tap.
+    const printer = await Niimbot.identify(MODEL);
+    $("printerInfo").textContent = printer
+      ? `${printer.label} · id ${printer.modelId ?? "unknown"} · ${printer.task || "?"} · ${printer.dpi || "?"} dpi`
+      : "Identification failed";
+    if (!printer || printer.modelId !== 528) {
+      throw new Error(`Expected D11_H (model id 528); detected ${printer?.label || "unknown printer"} (id ${printer?.modelId ?? "unknown"}). No label was sent.`);
+    }
+  }
+
+  async function readInstalledRoll(Niimbot) {
+    try {
+      const status = await Niimbot.getStatus();
+      const rfid = status?.decoded?.rfid;
+      if (rfid?.tagPresent && rfid.barCode) {
+        return { barcode: rfid.barCode, note: `Tag barcode ${rfid.barCode}` };
+      }
+      if (rfid?.tagPresent === false) {
+        return { barcode: null, note: "No roll tag detected. Use the selected label." };
+      }
+      const raw = status?.raw?.rfid;
+      return {
+        barcode: null,
+        note: raw?.length ? `Roll tag answered but was not decoded (${raw.length} bytes). Use the selected label.`
+          : "No readable roll tag. Use the selected label.",
+      };
+    } catch (e) {
+      return { barcode: null, note: `Roll read failed: ${e?.message || String(e)}. Use the selected label.` };
+    }
+  }
+
+  async function rememberInstalledRoll() {
+    if (printing || readingRoll) return;
+    const selected = $("profile").value;
+    if (!Object.hasOwn(PRESETS, selected)) {
+      reportError("Choose one of the named label presets before remembering this roll.");
+      return;
+    }
+    if (!window.isSecureContext) {
+      reportError("Web Bluetooth needs HTTPS. Open this page from an HTTPS address in Chrome.");
+      return;
+    }
+    const Niimbot = window.Niimbot;
+    if (!Niimbot || Niimbot.VERSION !== DRIVER_VERSION || !Niimbot.isSupported?.()) {
+      reportError("Printer driver or Web Bluetooth is unavailable. Open the HTTPS page directly in Chrome on Android.");
+      return;
+    }
+    if (!rollMemory) {
+      reportError("Roll memory did not load. Reload the page before remembering a roll.");
+      return;
+    }
+
+    readingRoll = true;
+    $("rememberRoll").disabled = true;
+    $("print").disabled = true;
+    $("testPattern").disabled = true;
+    try {
+      $("lastError").textContent = "None";
+      progress.length = 0;
+      addProgress("Connecting to read installed roll…");
+      await identifyD11(Niimbot);
+      const roll = await readInstalledRoll(Niimbot);
+      setRollInfo(roll.note);
+      if (!roll.barcode) throw new Error(`${roll.note} This roll cannot be auto-selected.`);
+      if (!rollMemory.remember(roll.barcode, { size: selected })) {
+        throw new Error("Could not save this roll on the phone. Check browser storage settings.");
+      }
+      const message = `Saved roll ${roll.barcode} as ${PRESETS[selected].name}. Future prints will select it automatically.`;
+      setRollInfo(message);
+      addProgress(message);
+      setStatus(message, "ok");
+    } catch (e) {
+      const message = e?.message || String(e);
+      if ($("printerInfo").textContent === "Connecting / identifying…") $("printerInfo").textContent = "Not identified";
+      addProgress(`Roll recognition: ${message}`);
+      reportError(message);
+    } finally {
+      readingRoll = false;
+      $("rememberRoll").disabled = false;
+      $("print").disabled = false;
+      $("testPattern").disabled = false;
+    }
+  }
+
   async function printNow(pattern = false) {
-    if (printing) return;
+    if (printing || readingRoll) return;
     const text = $("text").value.trim();
     if (!text && !pattern) {
       reportError("Type something first.");
@@ -372,6 +467,7 @@
     printing = true;
     $("print").disabled = true;
     $("testPattern").disabled = true;
+    $("rememberRoll").disabled = true;
     $("print").textContent = "Preparing…";
     saveState();
 
@@ -388,15 +484,29 @@
       $("lastError").textContent = "None";
       progress.length = 0;
       addProgress("Connecting to D11_H…");
-      $("printerInfo").textContent = "Connecting / identifying…";
-      // identify() calls requestDevice immediately, while this Print tap still has
-      // browser user activation. The later printImage() reuses that connection.
-      const printer = await Niimbot.identify(MODEL);
-      $("printerInfo").textContent = printer
-        ? `${printer.label} · id ${printer.modelId ?? "unknown"} · ${printer.task || "?"} · ${printer.dpi || "?"} dpi`
-        : "Identification failed";
-      if (!printer || printer.modelId !== 528) {
-        throw new Error(`Expected D11_H (model id 528); detected ${printer?.label || "unknown printer"} (id ${printer?.modelId ?? "unknown"}). No label was sent.`);
+      await identifyD11(Niimbot);
+      let recognized = false;
+      if (rollMemory) {
+        addProgress("Checking installed roll…");
+        const roll = await readInstalledRoll(Niimbot);
+        const saved = roll.barcode ? rollMemory.recall(roll.barcode) : null;
+        if (saved && Object.hasOwn(PRESETS, saved.size)) {
+          recognized = true;
+          if ($("profile").value !== saved.size) {
+            $("profile").value = saved.size;
+            loadCalibrationFields();
+            saveState();
+            renderPreview();
+          }
+          setRollInfo(`Tag ${roll.barcode} → ${PRESETS[saved.size].name} (saved on this phone).`);
+          addProgress(`Recognized installed roll: ${PRESETS[saved.size].name}`);
+        } else {
+          const note = roll.barcode
+            ? `Tag ${roll.barcode} has no saved label size. Using selected preset.`
+            : roll.note;
+          setRollInfo(note);
+          addProgress(note);
+        }
       }
       const profile = currentProfile();
       const date = localDate($("dateMode").value);
@@ -418,7 +528,7 @@
         },
       });
       addProgress("Printer confirmed completion.");
-      setStatus(pattern ? "Calibration pattern printed." : "Printed. Ready for the next label.", "ok");
+      setStatus(`${pattern ? "Calibration pattern printed" : "Printed"} with ${profile.name}${recognized ? " (recognized roll)" : " (selected preset)"}.`, "ok");
       if (!pattern) { $("text").focus(); $("text").select(); }
     } catch (e) {
       const msg = (e && e.message) ? e.message : String(e);
@@ -429,6 +539,7 @@
       printing = false;
       $("print").disabled = false;
       $("testPattern").disabled = false;
+      $("rememberRoll").disabled = false;
       $("print").textContent = "Print";
     }
   }
@@ -447,6 +558,7 @@
 
   $("print").addEventListener("click", () => printNow(false));
   $("testPattern").addEventListener("click", () => printNow(true));
+  $("rememberRoll").addEventListener("click", rememberInstalledRoll);
   $("text").addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();

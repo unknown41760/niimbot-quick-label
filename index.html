@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#111827" />
-  <meta name="app-version" content="0.2.2-test" />
+  <meta name="app-version" content="0.3.0-test" />
   <title>Quick Label — NIIMBOT D11_H</title>
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
@@ -112,6 +112,11 @@
       <p class="small">The 12.5 × 109 roll has two adjacent 37 mm printed sections, followed by a 35 mm blank wrap tail. The second section is rotated by default.</p>
       <p id="calibrationState" class="small"></p>
 
+      <h2 style="font-size:1rem;margin:18px 0 8px">Installed roll</h2>
+      <p class="small">If the roll has a readable tag, choose its label size once and remember it. Future prints select that size automatically. Untagged rolls keep using the visible selector.</p>
+      <button id="rememberRoll" class="secondary" type="button">Remember this roll as the selected label</button>
+      <p id="rollInfo" class="small">Roll not checked yet.</p>
+
       <label for="feedOffset">Feed offset for this label, px</label>
       <input id="feedOffset" type="number" min="-30" max="30" step="1" value="0" inputmode="numeric" />
       <p class="small">Positive moves artwork toward the end of the label; negative moves it toward the start. Paper size stays the same.</p>
@@ -146,6 +151,7 @@
       <div class="diagnostics" aria-live="polite">
         <p>App: <span id="appVersion"></span> · Driver: <span id="driverVersion"></span></p>
         <p>Printer: <span id="printerInfo">Not connected yet</span></p>
+        <p>Roll: <span id="rollDiagnostic">Not checked yet</span></p>
         <p>Label bitmap: <span id="pixelSize"></span></p>
         <p>Last error: <span id="lastError">None</span></p>
         <p>Print progress:</p><pre id="progressLog" class="diag-log">No print attempted yet.</pre>
@@ -156,6 +162,7 @@
   <p class="footer">Test build <span id="footerVersion"></span> for NIIMBOT D11_H. Uses the bundled <code>niimbot-web-bluetooth</code> 2.6.0 driver (MIT). Use an HTTPS page in Chrome on Android.</p>
 </main>
 <script src="vendor/niimbot.js?v=2.6.0" defer></script>
-<script src="app.js?v=0.2.2" defer></script>
+<script src="vendor/label-memory.js?v=2.6.0" defer></script>
+<script src="app.js?v=0.3.0" defer></script>
 </body>
 </html>
