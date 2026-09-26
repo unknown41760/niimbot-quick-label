@@ -5,7 +5,7 @@
   const PX_PER_MM = 354 / 30; // D11_H measured 300-dpi feed scale from the driver registry.
   const HEAD_PX = 144;
   const STORAGE_KEY = "quick-label-d11h-v1";
-  const APP_VERSION = "0.2.1-test";
+  const APP_VERSION = "0.2.2-test";
   const DRIVER_VERSION = "2.6.0";
 
   const MODEL = {
@@ -43,7 +43,7 @@
     try {
       return Object.assign({
         profile: "15x30",
-        dateMode: "day",
+        dateMode: "full",
         density: "3",
         flipSecond: true,
         customWidth: "15",
@@ -55,7 +55,7 @@
         calibration: {},
       }, JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"));
     } catch (_) {
-      return { profile: "15x30", dateMode: "day", density: "3", flipSecond: true, calibration: {} };
+      return { profile: "15x30", dateMode: "full", density: "3", flipSecond: true, calibration: {} };
     }
   }
 

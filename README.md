@@ -1,6 +1,6 @@
 # Quick Label — NIIMBOT D11_H
 
-A small, static Android Chrome app for **type → Print**. Text and the phone's local date are drawn to a bitmap, including Cyrillic, before being sent over Web Bluetooth. There is no server, account, build step, or analytics.
+A small, static Android Chrome app for **type → Print**. Text and the phone's local date are drawn to a bitmap, including Cyrillic, before being sent over Web Bluetooth. The full local date is the default on a fresh visit; a previously selected date mode remains saved. There is no server, account, build step, or analytics.
 
 ## Label presets
 
