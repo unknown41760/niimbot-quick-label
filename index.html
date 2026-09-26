@@ -89,7 +89,7 @@
   </div>
 
   <div class="preview-wrap">
-    <div class="preview-label">Automatic preview — Russian/Cyrillic is supported</div>
+    <div id="previewCaption" class="preview-label">Automatic preview — Russian/Cyrillic is supported</div>
     <canvas id="preview" width="354" height="144"></canvas>
   </div>
 
@@ -109,7 +109,7 @@
       </select>
 
       <label class="checkbox"><input id="flipSecond" type="checkbox" checked /> Rotate the second side 180° on double-sided cable labels</label>
-      <p class="small">The 12.5 × 109 preset is laid out as 37 mm print + 35 mm blank wrap area + 37 mm print.</p>
+      <p class="small">The 12.5 × 109 roll has two adjacent 37 mm printed sections, followed by a 35 mm blank wrap tail. The second section is rotated by default.</p>
       <p id="calibrationState" class="small"></p>
 
       <label for="feedOffset">Feed offset for this label, px</label>
@@ -119,7 +119,7 @@
       <input id="horizontalOffset" type="number" min="-12" max="12" step="1" value="0" inputmode="numeric" />
       <p class="small">Shifts artwork within the 144 px printhead; content at an edge may be clipped.</p>
       <button id="testPattern" class="secondary" type="button">Print one calibration pattern</button>
-      <p class="small">Uses one label of the selected roll. The pattern marks the start/end and three positions across the head.</p>
+      <p class="small">Uses one label. The pattern marks the start/end, three positions across the head, and both section boundaries on double labels.</p>
 
       <div id="custom" class="custom">
         <div class="row">
@@ -131,8 +131,13 @@
         <div id="customDouble" class="custom">
           <div class="row">
             <div><label for="sideMm">Each printed side, mm</label><input id="sideMm" type="number" min="10" max="70" step="0.1" value="30" inputmode="decimal" /></div>
-            <div><label for="gapMm">Middle gap, mm</label><input id="gapMm" type="number" min="0" max="80" step="0.1" value="20" inputmode="decimal" /></div>
+            <div><label for="gapMm">Blank area, mm</label><input id="gapMm" type="number" min="0" max="80" step="0.1" value="20" inputmode="decimal" /></div>
           </div>
+          <label for="customBlankPlacement">Blank area placement</label>
+          <select id="customBlankPlacement">
+            <option value="tail">After both printed sections</option>
+            <option value="between">Between printed sections</option>
+          </select>
         </div>
       </div>
 
@@ -151,6 +156,6 @@
   <p class="footer">Test build <span id="footerVersion"></span> for NIIMBOT D11_H. Uses the bundled <code>niimbot-web-bluetooth</code> 2.6.0 driver (MIT). Use an HTTPS page in Chrome on Android.</p>
 </main>
 <script src="vendor/niimbot.js?v=2.6.0" defer></script>
-<script src="app.js?v=0.2.0" defer></script>
+<script src="app.js?v=0.2.1" defer></script>
 </body>
 </html>

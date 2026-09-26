@@ -5,7 +5,7 @@
   const PX_PER_MM = 354 / 30; // D11_H measured 300-dpi feed scale from the driver registry.
   const HEAD_PX = 144;
   const STORAGE_KEY = "quick-label-d11h-v1";
-  const APP_VERSION = "0.2.0-test";
+  const APP_VERSION = "0.2.1-test";
   const DRIVER_VERSION = "2.6.0";
 
   const MODEL = {
@@ -25,7 +25,8 @@
       lengthMm: 109,
       mode: "double",
       sideMm: 37,
-      gapMm: 35,
+      blankMm: 35,
+      blankPlacement: "tail",
     },
   };
 
@@ -50,6 +51,7 @@
         customMode: "single",
         sideMm: "30",
         gapMm: "20",
+        customBlankPlacement: "tail",
         calibration: {},
       }, JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"));
     } catch (_) {
@@ -58,7 +60,7 @@
   }
 
   function applyState() {
-    const fields = ["profile", "dateMode", "density", "customWidth", "customLength", "customMode", "sideMm", "gapMm"];
+    const fields = ["profile", "dateMode", "density", "customWidth", "customLength", "customMode", "sideMm", "gapMm", "customBlankPlacement"];
     for (const id of fields) if ($(id) && state[id] != null) $(id).value = state[id];
     $("flipSecond").checked = state.flipSecond !== false;
     toggleCustom();
@@ -66,7 +68,7 @@
   }
 
   function saveState() {
-    const fields = ["profile", "dateMode", "density", "customWidth", "customLength", "customMode", "sideMm", "gapMm"];
+    const fields = ["profile", "dateMode", "density", "customWidth", "customLength", "customMode", "sideMm", "gapMm", "customBlankPlacement"];
     for (const id of fields) if ($(id)) state[id] = $(id).value;
     state.flipSecond = $("flipSecond").checked;
     const key = $("profile").value;
@@ -116,7 +118,8 @@
       lengthMm,
       mode,
       sideMm: Math.max(10, Math.min(70, number($("sideMm").value, 30))),
-      gapMm: Math.max(0, Math.min(80, number($("gapMm").value, 20))),
+      blankMm: Math.max(0, Math.min(80, number($("gapMm").value, 20))),
+      blankPlacement: $("customBlankPlacement").value === "between" ? "between" : "tail",
     };
   }
 
@@ -221,6 +224,26 @@
     ctx.restore();
   }
 
+  function doubleLayout(profile, lengthPx) {
+    const sidePx = Math.max(40, Math.round(profile.sideMm * PX_PER_MM));
+    const blankPx = Math.max(0, Math.round(profile.blankMm * PX_PER_MM));
+    const totalWanted = sidePx * 2 + blankPx;
+    const scale = totalWanted > lengthPx ? lengthPx / totalWanted : 1;
+    const s = Math.min(Math.round(sidePx * scale), Math.floor(lengthPx / 2));
+    // Independent rounding of 37 + 37 + 35 mm can exceed 109 mm by one row.
+    const blank = Math.min(Math.round(blankPx * scale), lengthPx - s * 2);
+    const between = profile.blankPlacement === "between";
+    const used = s * 2 + blank;
+    const start = between ? Math.max(0, Math.round((lengthPx - used) / 2)) : 0;
+    const secondStart = start + s + (between ? blank : 0);
+    return {
+      firstStart: start,
+      secondStart,
+      sidePx: s,
+      boundaries: between ? [start + s, secondStart] : [start + s, secondStart + s],
+    };
+  }
+
   function buildLogicalCanvas(profile, text, date) {
     const size = sizeFor(profile);
     const logical = document.createElement("canvas");
@@ -233,20 +256,12 @@
     ctx.translate(0, -calibration().horizontal);
 
     if (profile.mode === "double") {
-      const sidePx = Math.max(40, Math.round(profile.sideMm * PX_PER_MM));
-      const gapPx = Math.max(0, Math.round(profile.gapMm * PX_PER_MM));
-      const totalWanted = sidePx * 2 + gapPx;
-      const scale = totalWanted > logical.width ? logical.width / totalWanted : 1;
-      const s = Math.min(Math.round(sidePx * scale), Math.floor(logical.width / 2));
-      // Independent rounding of 37 + 35 + 37 mm can exceed 109 mm by one row.
-      const g = Math.min(Math.round(gapPx * scale), logical.width - s * 2);
-      const used = s * 2 + g;
-      const start = Math.max(0, Math.round((logical.width - used) / 2));
-      drawSide(ctx, start, 0, s, logical.height, text, date, false);
-      drawSide(ctx, start + s + g, 0, s, logical.height, text, date, $("flipSecond").checked);
+      const layout = doubleLayout(profile, logical.width);
+      drawSide(ctx, layout.firstStart, 0, layout.sidePx, logical.height, text, date, false);
+      drawSide(ctx, layout.secondStart, 0, layout.sidePx, logical.height, text, date, $("flipSecond").checked);
 
       // faint preview-only guide is added later; print canvas stays clean.
-      logical._doubleMeta = { firstEnd: start + s, secondStart: start + s + g };
+      logical._doubleMeta = { boundaries: layout.boundaries };
     } else {
       drawSide(ctx, 0, 0, logical.width, logical.height, text, date, false);
     }
@@ -273,6 +288,9 @@
     const text = $("text").value.trim() || "Молоко";
     const date = localDate($("dateMode").value);
     const { logical, size } = buildLogicalCanvas(profile, text, date);
+    $("previewCaption").textContent = profile.mode === "double"
+      ? (profile.blankPlacement === "between" ? "Print | blank middle | print" : "Print | print | blank wrap tail")
+      : "Automatic preview — Russian/Cyrillic is supported";
     const c = calibration();
     $("pixelSize").textContent = `${size.w_px} × ${size.h_px} px · feed ${c.feed > 0 ? "+" : ""}${c.feed} px · across ${c.horizontal > 0 ? "+" : ""}${c.horizontal} px`;
     const preview = $("preview");
@@ -287,10 +305,10 @@
       ctx.lineWidth = Math.max(1, Math.round(preview.height * 0.01));
       ctx.setLineDash([7, 6]);
       ctx.beginPath();
-      ctx.moveTo(logical._doubleMeta.firstEnd, 0);
-      ctx.lineTo(logical._doubleMeta.firstEnd, preview.height);
-      ctx.moveTo(logical._doubleMeta.secondStart, 0);
-      ctx.lineTo(logical._doubleMeta.secondStart, preview.height);
+      for (const boundary of logical._doubleMeta.boundaries) {
+        ctx.moveTo(boundary, 0);
+        ctx.lineTo(boundary, preview.height);
+      }
       ctx.stroke();
       ctx.restore();
     }
@@ -314,7 +332,7 @@
     setStatus(message);
   }
 
-  function testPattern(size) {
+  function testPattern(size, profile) {
     const canvas = document.createElement("canvas");
     canvas.width = size.w_px;
     canvas.height = size.h_px;
@@ -324,7 +342,10 @@
     ctx.fillStyle = "#000";
     const shift = calibration().horizontal;
     // Short ticks use little heat and leave a known 12 px inset at each feed end.
-    for (const y of [12, Math.round(size.h_px / 2), size.h_px - 12]) {
+    const rows = profile.mode === "double"
+      ? [12, ...doubleLayout(profile, size.h_px).boundaries, size.h_px - 12]
+      : [12, Math.round(size.h_px / 2), size.h_px - 12];
+    for (const y of rows) {
       for (const x of [12, Math.round(size.w_px / 2), size.w_px - 12]) {
         ctx.fillRect(x + shift - 1, y - 5, 3, 11);
       }
@@ -380,7 +401,7 @@
       const profile = currentProfile();
       const date = localDate($("dateMode").value);
       const built = buildLogicalCanvas(profile, text, date);
-      const physical = pattern ? testPattern(built.size) : toPhysicalCanvas(built.logical, built.size);
+      const physical = pattern ? testPattern(built.size, profile) : toPhysicalCanvas(built.logical, built.size);
       const png = physical.toDataURL("image/png");
       const density = Number($("density").value) || 3;
       const c = calibration();
@@ -412,7 +433,7 @@
     }
   }
 
-  const watched = ["text", "profile", "dateMode", "density", "flipSecond", "customWidth", "customLength", "customMode", "sideMm", "gapMm", "feedOffset", "horizontalOffset"];
+  const watched = ["text", "profile", "dateMode", "density", "flipSecond", "customWidth", "customLength", "customMode", "sideMm", "gapMm", "customBlankPlacement", "feedOffset", "horizontalOffset"];
   for (const id of watched) {
     const el = $(id);
     const event = (el.type === "text" || el.type === "number") ? "input" : "change";
