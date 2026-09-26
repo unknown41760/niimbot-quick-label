@@ -15,9 +15,11 @@ The 144 px width is the measured printhead width, even when the roll is 15 mm wi
 
 ## Installed roll recognition
 
-If the installed roll has a readable RFID tag, the printer can return a roll barcode. **The tag does not contain label dimensions.** To teach this phone a barcode once, choose the correct named preset and tap **Settings → Remember this roll as the selected label**. This reads the roll without printing and stores the barcode-to-preset association in this browser's local storage. On later Print taps, the app reads the installed roll, selects the saved preset before rendering, and reports the selection in Settings. Choose a different preset and use the same button to correct an association.
+If the installed roll has a readable RFID tag, the printer can return a roll barcode. **The tag does not contain label dimensions.** The app includes an exact mapping from the observed barcode `083024188` to the **12.5 × 109 mm — two sides** preset. After connecting this tagged roll on another phone that opens the same app version, Print selects that preset before rendering. No local setup is needed on the other phone.
 
-If no tag is readable, the read fails, or the barcode has not been taught, Print continues with the visible selector and says so. This feature has not yet been tested on the user's D11_H/rolls; upstream's RFID decoding is only partly validated on other models. No cloud lookup or unknown protocol probe is used. Chrome still requires a tap to initiate the Bluetooth connection.
+To teach a phone another barcode, choose the correct named preset and tap **Settings → Remember this roll as the selected label**. This reads the roll without printing and stores the barcode-to-preset association in this browser's local storage. On later Print taps, the app reads the installed roll, selects a locally saved preset first or a built-in match second, and reports the selection in Settings. Choose a different preset and use the same button to override a built-in mapping on that phone.
+
+The RFID response has separate `barCode` and `serialNumber` fields. Upstream observed 13-digit product barcodes, but `083024188` is nine digits, and only one roll has been reported with it. A second roll of the same product must be scanned before assuming all such rolls share this barcode. If no tag is readable, the read fails, or the barcode is unknown, Print continues with the visible selector and says so. The user successfully saved this roll's barcode using the D11_H, but automatic selection and the new built-in match still need a physical print check. No cloud lookup or unknown protocol probe is used. Chrome still requires a tap to initiate the Bluetooth connection.
 
 ## Deploy on GitHub Pages
 

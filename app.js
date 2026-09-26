@@ -5,7 +5,7 @@
   const PX_PER_MM = 354 / 30; // D11_H measured 300-dpi feed scale from the driver registry.
   const HEAD_PX = 144;
   const STORAGE_KEY = "quick-label-d11h-v1";
-  const APP_VERSION = "0.3.0-test";
+  const APP_VERSION = "0.3.1-test";
   const DRIVER_VERSION = "2.6.0";
   const ROLL_MEMORY_KEY = "quick-label-d11h:rolls-v1";
 
@@ -31,6 +31,12 @@
     },
   };
 
+  // Observed on the user's 12.5 × 109 roll. Match this exact barcode only;
+  // whether other rolls of the same product reuse it is not yet verified.
+  const BUILTIN_ROLLS = {
+    "083024188": "12.5x109-double",
+  };
+
   const state = loadState();
   applyState();
 
@@ -41,7 +47,7 @@
   $("appVersion").textContent = APP_VERSION;
   $("footerVersion").textContent = APP_VERSION;
   $("driverVersion").textContent = window.Niimbot?.VERSION || "failed to load";
-  if (!rollMemory) setRollInfo("Roll memory failed to load; manual selection remains available.");
+  if (!rollMemory) setRollInfo("Roll memory failed to load; built-in recognition and manual selection remain available.");
 
   function loadState() {
     try {
@@ -486,27 +492,27 @@
       addProgress("Connecting to D11_H…");
       await identifyD11(Niimbot);
       let recognized = false;
-      if (rollMemory) {
-        addProgress("Checking installed roll…");
-        const roll = await readInstalledRoll(Niimbot);
-        const saved = roll.barcode ? rollMemory.recall(roll.barcode) : null;
-        if (saved && Object.hasOwn(PRESETS, saved.size)) {
-          recognized = true;
-          if ($("profile").value !== saved.size) {
-            $("profile").value = saved.size;
-            loadCalibrationFields();
-            saveState();
-            renderPreview();
-          }
-          setRollInfo(`Tag ${roll.barcode} → ${PRESETS[saved.size].name} (saved on this phone).`);
-          addProgress(`Recognized installed roll: ${PRESETS[saved.size].name}`);
-        } else {
-          const note = roll.barcode
-            ? `Tag ${roll.barcode} has no saved label size. Using selected preset.`
-            : roll.note;
-          setRollInfo(note);
-          addProgress(note);
+      addProgress("Checking installed roll…");
+      const roll = await readInstalledRoll(Niimbot);
+      const local = roll.barcode ? rollMemory?.recall(roll.barcode) : null;
+      const builtin = roll.barcode && Object.hasOwn(BUILTIN_ROLLS, roll.barcode) ? BUILTIN_ROLLS[roll.barcode] : null;
+      const mappedSize = local?.size && Object.hasOwn(PRESETS, local.size) ? local.size : builtin;
+      if (mappedSize && Object.hasOwn(PRESETS, mappedSize)) {
+        recognized = true;
+        if ($("profile").value !== mappedSize) {
+          $("profile").value = mappedSize;
+          loadCalibrationFields();
+          saveState();
+          renderPreview();
         }
+        setRollInfo(`Tag ${roll.barcode} → ${PRESETS[mappedSize].name} (${local?.size === mappedSize ? "saved on this phone" : "built into app"}).`);
+        addProgress(`Recognized installed roll: ${PRESETS[mappedSize].name}`);
+      } else {
+        const note = roll.barcode
+          ? `Tag ${roll.barcode} has no known label size. Using selected preset.`
+          : roll.note;
+        setRollInfo(note);
+        addProgress(note);
       }
       const profile = currentProfile();
       const date = localDate($("dateMode").value);
